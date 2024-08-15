@@ -1,4 +1,5 @@
 pub mod models;
+pub mod send_file;
 
 use models::data::{Data, DataBuilder, Date};
 use pdf_extract::extract_text;

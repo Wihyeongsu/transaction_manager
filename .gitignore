@@ -2,3 +2,4 @@
 /example
 /tests
 /.gitmessage.txt
+/src/send_file.rs

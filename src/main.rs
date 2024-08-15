@@ -1,6 +1,7 @@
 use rust_xlsxwriter::*;
 use std::error::Error;
 use std::path::Path;
+use transaction_manager::send_file::run_shell_command;
 use transaction_manager::{cell_name, extract_tables_from_pdf};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -44,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // worksheet.write_with_format(6 + row, 5, data.balance, &format_digit)?;
 
-        worksheet.write_formula(
+        worksheet.write_formula_with_format(
             6 + row,
             5,
             Formula::new(format!(
@@ -53,12 +54,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 cell_name(6 + row, 3),
                 cell_name(6 + row, 4)
             )),
+            &format_digit,
         )?;
         worksheet.set_column_width(5, 11.64)?;
     }
 
     // Save the file to disk.
     workbook.save("example/test.xlsx")?;
+
+    run_shell_command()?;
 
     Ok(())
 }
