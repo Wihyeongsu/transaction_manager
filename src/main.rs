@@ -1,7 +1,7 @@
 use rust_xlsxwriter::*;
 use std::error::Error;
 use std::path::Path;
-use transaction_manager::extract_tables_from_pdf;
+use transaction_manager::{cell_name, extract_tables_from_pdf};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let pdf_path = Path::new("example/account2.pdf");
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 workbook
                     .add_worksheet()
                     .set_name(sheet_name)
-                    .expect("Create new worksheet")
+                    .expect("Add new worksheet")
             }
         };
 
@@ -42,9 +42,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         worksheet.write_with_format(6 + row, 4, data.cash_out, &format_digit)?;
         worksheet.set_column_width(4, 10.64)?;
 
-        worksheet.write_with_format(6 + row, 5, data.balance, &format_digit)?;
+        // worksheet.write_with_format(6 + row, 5, data.balance, &format_digit)?;
 
-        worksheet.write_formula(6 + row, 6, "=");
+        worksheet.write_formula(
+            6 + row,
+            5,
+            Formula::new(format!(
+                "={} + {} - {}",
+                cell_name(5 + row, 5),
+                cell_name(6 + row, 3),
+                cell_name(6 + row, 4)
+            )),
+        )?;
         worksheet.set_column_width(5, 11.64)?;
     }
 
