@@ -1,10 +1,16 @@
 use rust_xlsxwriter::*;
 use std::error::Error;
 use std::path::Path;
+use transaction_manager::discord_message::{fetch_data, send_discord_xlsx};
 use transaction_manager::send_file::run_shell_command;
-use transaction_manager::{cell_name, extract_tables_from_pdf};
+use transaction_manager::{cell_name, extract_tables_from_pdf, sheet_template};
 
-fn main() -> Result<(), Box<dyn Error>> {
+// 월별 transaction 분류
+// 병렬로 sheet 작성
+// 이후 workbook에 sheet 추가
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let pdf_path = Path::new("example/account2.pdf");
     let mut table = extract_tables_from_pdf(pdf_path)?;
 
@@ -14,55 +20,67 @@ fn main() -> Result<(), Box<dyn Error>> {
     let format_digit = Format::new().set_num_format("_-₩* #,##0_-;-₩* #,##0_-;_-₩* \" - \"_-;_-@");
     let mut row = 0;
 
-    while let Some(data) = table.pop() {
-        // Add a worksheet to the workbook.
-        let sheet_name = data.date.month.to_string() + "월 정산서";
-        let worksheet = match workbook.worksheet_from_name(&sheet_name) {
-            Ok(sheet) => {
-                row += 1;
-                sheet
-            }
-            Err(_) => {
-                row = 0;
-                workbook
-                    .add_worksheet()
-                    .set_name(sheet_name)
-                    .expect("Add new worksheet")
-            }
-        };
-
-        let datetime = ExcelDateTime::from_ymd(data.date.year, data.date.month, data.date.day)?;
-
-        // Write with format
-        worksheet.write_with_format(6 + row, 0, datetime, &format_date)?;
-        worksheet.set_column_width(0, 8.64)?;
-
-        worksheet.write_with_format(6 + row, 3, data.cash_in, &format_digit)?;
-        worksheet.set_column_width(3, 10.64)?;
-
-        worksheet.write_with_format(6 + row, 4, data.cash_out, &format_digit)?;
-        worksheet.set_column_width(4, 10.64)?;
-
-        // worksheet.write_with_format(6 + row, 5, data.balance, &format_digit)?;
-
-        worksheet.write_formula_with_format(
-            6 + row,
-            5,
-            Formula::new(format!(
-                "={} + {} - {}",
-                cell_name(5 + row, 5),
-                cell_name(6 + row, 3),
-                cell_name(6 + row, 4)
-            )),
-            &format_digit,
-        )?;
-        worksheet.set_column_width(5, 11.64)?;
+    for month in 1..=12 {
+        let sheet_name = month.to_string() + "월 정산서";
+        let mut worksheet = Worksheet::new();
+        sheet_template(&mut worksheet, sheet_name.as_str())?;
+        workbook.push_worksheet(worksheet);
     }
+
+    // while let Some(data) = table.pop() {
+    //     // Add a worksheet to the workbook.
+    //     let sheet_name = data.date.month.to_string() + "월 정산서";
+    //     let worksheet = match workbook.worksheet_from_name(&sheet_name) {
+    //         Ok(sheet) => {
+    //             row += 1;
+    //             sheet
+    //         }
+    //         Err(_) => {
+    //             row = 0;
+    //             workbook
+    //                 .add_worksheet()
+    //                 .set_name(sheet_name)
+    //                 .expect("Add new worksheet")
+    //         }
+    //     };
+
+    //     // create sheet template
+    //     // write data
+    //     let datetime = ExcelDateTime::from_ymd(data.date.year, data.date.month, data.date.day)?;
+
+    //     // Write with format
+    //     worksheet.write_with_format(6 + row, 0, datetime, &format_date)?;
+    //     worksheet.set_column_width(0, 8.64)?;
+
+    //     worksheet.write_with_format(6 + row, 3, data.cash_in, &format_digit)?;
+    //     worksheet.set_column_width(3, 10.64)?;
+
+    //     worksheet.write_with_format(6 + row, 4, data.cash_out, &format_digit)?;
+    //     worksheet.set_column_width(4, 10.64)?;
+
+    //     // worksheet.write_with_format(6 + row, 5, data.balance, &format_digit)?;
+
+    //     worksheet.write_formula_with_format(
+    //         6 + row,
+    //         5,
+    //         Formula::new(format!(
+    //             "={} + {} - {}",
+    //             cell_name(5 + row, 5),
+    //             cell_name(6 + row, 3),
+    //             cell_name(6 + row, 4)
+    //         )),
+    //         &format_digit,
+    //     )?;
+    //     worksheet.set_column_width(5, 11.64)?;
+    // }
 
     // Save the file to disk.
     workbook.save("example/test.xlsx")?;
 
     run_shell_command()?;
+
+    // send xlsx file to discord server
+    send_discord_xlsx().await?;
 
     Ok(())
 }

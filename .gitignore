@@ -3,3 +3,5 @@
 /tests
 /.gitmessage.txt
 /src/send_file.rs
+/src/discord_message.rs
+/src/models/request.rs
