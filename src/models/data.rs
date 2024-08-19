@@ -1,5 +1,9 @@
 use regex::Regex;
 
+pub trait VariantName {
+    fn variant_name(&self) -> &'static str;
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum BusinessType {
     Unclassified,    // 미정
@@ -11,6 +15,17 @@ pub enum BusinessType {
 impl Default for BusinessType {
     fn default() -> Self {
         BusinessType::Unclassified
+    }
+}
+
+impl VariantName for BusinessType {
+    fn variant_name(&self) -> &'static str {
+        match self {
+            BusinessType::Unclassified => "",
+            BusinessType::GeneralBusiness => "일반사업",
+            BusinessType::PledgedBusiness => "공약사업",
+            BusinessType::OngoingBusiness => "상시사업",
+        }
     }
 }
 
