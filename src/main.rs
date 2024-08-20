@@ -7,7 +7,7 @@ use transaction_manager::format::format_list;
 use transaction_manager::models::data;
 use transaction_manager::send_file::run_shell_command;
 use transaction_manager::{
-    cell_name, extract_tables_from_pdf, separate_data, sheet_template, write_data_in_sheet,
+    budget, cell_name, extract_tables_from_pdf, separate_data, sheet_template, write_data_in_sheet,
 };
 
 // 월별 transaction 분류
@@ -22,8 +22,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a new Excel file object.
     let mut workbook = Workbook::new();
 
-    let month_data_list = separate_data(table);
+    let mut worksheets = Vec::with_capacity(7);
+    let month_data_list = separate_data(table)?;
     let mut data_size = Vec::with_capacity(month_data_list.len()); // 작월 이월금을 가져오기 위해 사용
+
+    //
+    let period = format!(
+        "{}년도 제{}회기",
+        month_data_list[0].1[0].date.year,
+        match month_data_list[0].0 {
+            // 이 부분은 개선의 필요가 있을 듯
+            6 => 2,
+            1 => 1,
+            _ => 0,
+        }
+    );
 
     for (month, data_list) in month_data_list.iter() {
         let sheet_name = month.to_string() + "월 정산서";
@@ -34,19 +47,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         write_data_in_sheet(&mut worksheet, data_list)?;
 
         // write schema formula
+        let len = data_list.len() as u32;
         worksheet
             // 수입
             .write_formula_with_format(
                 1,
                 3,
-                Formula::new(format!("={}", cell_name(6 + data_list.len() as u32, 3))),
+                Formula::new(format!("={}", cell_name(7 + len, 3))),
                 &format_list(6),
             )?
             // 지출
             .write_formula_with_format(
                 2,
                 3,
-                Formula::new(format!("={}", cell_name(6 + data_list.len() as u32, 4))),
+                Formula::new(format!("={}", cell_name(7 + len, 4))),
                 &format_list(6),
             )?;
         // 이월금
@@ -55,17 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .write_formula_with_format(
                     3,
                     3,
-                    Formula::new(format!(
-                        "={}년도 제{}회기 예산안'!B7",
-                        data_list[0].date.year,
-                        match month {
-                            // 첫 sheet에서 검사하는 단계라 overlap 문제는 상관없을 것 같긴 한데
-                            // 혹시 모르기는 하니까 이 부분은 가이드라인 감사 대상 기간을 제대로 확인해서 방식을 바꾸든가 해야지
-                            6..=12 => 2,
-                            1..=6 => 1,
-                            _ => 0,
-                        }
-                    )),
+                    Formula::new(format!("='{} 예산안'!B7", period)),
                     &format_list(6),
                 )?
                 .write_with_format(3, 6, "전단위 인수인계 금액", &format_list(3))?;
@@ -77,7 +81,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     Formula::new(format!(
                         "='{}월 정산서'!{}",
                         month - 1,
-                        cell_name(6 + data_size.last().unwrap(), 5)
+                        cell_name(7 + data_size.last().unwrap(), 5)
                     )),
                     &format_list(6),
                 )?
@@ -85,13 +89,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         data_size.push(data_list.len() as u32);
+        worksheets.push(worksheet);
+    }
+
+    // {}년도 제{}회기 예산안
+    let worksheet1 = workbook
+        .add_worksheet()
+        .set_name(format!("{} 예산안", period))?;
+
+    // budget
+    budget(worksheet1, &period)?;
+
+    // {}년도 제{}회기 정산서
+    let worksheet2 = workbook
+        .add_worksheet()
+        .set_name(format!("{} 정산서", period))?;
+
+    for worksheet in worksheets.into_iter() {
         workbook.push_worksheet(worksheet);
     }
 
     // Save the file to disk.
     workbook.save("example/test.xlsx")?;
 
-    run_shell_command()?;
+    // run_shell_command()?;
 
     // send xlsx file to discord server
     send_discord_xlsx().await?;

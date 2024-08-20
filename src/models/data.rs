@@ -29,7 +29,7 @@ impl VariantName for BusinessType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Date {
     pub year: u16,
     pub month: u8,
