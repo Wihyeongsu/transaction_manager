@@ -5,3 +5,4 @@
 /src/send_file.rs
 /src/discord_message.rs
 /src/models/request.rs
+/.cargo

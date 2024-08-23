@@ -15,7 +15,7 @@ use transaction_manager::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let pdf_path = Path::new("example/account2.pdf");
+    let pdf_path = Path::new("account.pdf");
     let mut table = extract_tables_from_pdf(pdf_path)?;
 
     // Create a new Excel file object.
@@ -111,12 +111,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
         workbook.push_worksheet(worksheet);
     }
 
-    // Save the file to disk.
-    workbook.save("example/test.xlsx")?;
+    let title = format!("{} 중앙감사위원회_재정감사", period[0..4].to_string());
+    workbook.set_properties(
+        &DocProperties::new()
+            .set_author("위형수")
+            .set_manager("위형수")
+            .set_title(&title)
+            .set_company("Seoultech_com")
+            .set_comment("위형수, 여기에 잠들다..."),
+    );
 
-    // run_shell_command()?;
+    // Save the file to disk.
+    let location = format!("{}.xlsx", &title);
+    let location = Path::new(&location);
+    workbook.save(&location)?;
 
     // send xlsx file to discord server
-    send_discord_xlsx().await?;
+    // send_discord_xlsx(&location).await?;
+
     Ok(())
 }
