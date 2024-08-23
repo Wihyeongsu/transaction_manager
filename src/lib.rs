@@ -4,7 +4,7 @@ pub mod models;
 pub mod send_file;
 
 use format::{format_list, DATE_FORMAT_STR, NUM_FORMAT_STR};
-use models::data::{Data, DataBuilder, Date, VariantName};
+use models::data::{BusinessType, Data, DataBuilder, Date, VariantName};
 use pdf_extract::extract_text;
 use regex::Regex;
 use rust_xlsxwriter::{
@@ -390,6 +390,44 @@ pub fn write_data_in_sheet(
     Ok(())
 }
 
+pub fn write_business(
+    worksheet: &mut Worksheet,
+    business_type: BusinessType,
+    row: u32,
+    cnt: u32,
+) -> Result<u32, Box<dyn Error>> {
+    worksheet.merge_range(
+        row,
+        1,
+        row + cnt - 1,
+        1,
+        business_type.variant_name(),
+        &format_list(2)
+            .set_font_size(12)
+            .set_border(FormatBorder::Thin)
+            .set_border_left(FormatBorder::Medium),
+    )?;
+    for r in row..row + cnt {
+        worksheet
+            .write_row_with_format(
+                r,
+                2,
+                ["", "", "", "", "", ""],
+                &format_list(2)
+                    .set_font_size(12)
+                    .set_border(FormatBorder::Thin),
+            )?
+            .set_row_height(r, 27.8)?;
+        worksheet.write_with_format(
+            r,
+            8,
+            "",
+            &Format::new().set_border_left(FormatBorder::Medium),
+        )?;
+    }
+    Ok(row + cnt)
+}
+
 pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn Error>> {
     let schema_format = Format::new()
         .set_align(FormatAlign::Center)
@@ -409,21 +447,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
         .set_row_height(6, 26.3)?
         .set_row_height(7, 15.8)?
         .set_row_height(8, 26.3)?
-        .set_row_height(9, 27.8)?
-        .set_row_height(10, 43.5)?
-        .set_row_height(11, 43.5)?
-        .set_row_height(12, 43.5)?
-        .set_row_height(13, 43.5)?
-        .set_row_height(14, 43.5)?
-        .set_row_height(15, 43.5)?
-        .set_row_height(16, 43.5)?
-        .set_row_height(17, 43.5)?
-        .set_row_height(18, 43.5)?
-        .set_row_height(19, 43.5)?
-        .set_row_height(20, 43.5)?
-        .set_row_height(21, 43.5)?
-        .set_row_height(22, 43.5)?
-        .set_row_height(23, 45)?;
+        .set_row_height(9, 27.8)?;
 
     // set column width
     worksheet
@@ -436,7 +460,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
         .set_column_width(6, 35.91)?
         .set_column_width(7, 43.91)?;
 
-    // text
+    // Header
     worksheet
         .merge_range(
             0,
@@ -491,6 +515,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
     .merge_range(1, 1, 1, 7, "",&Format::new())?
     .merge_range(2, 1, 2, 7, "예산안 작성 전, 반드시 가이드라인 및 작성 예시를 참고해주세요. / 색칠된 칸은 입력하지 마세요. / 양식에 맞추어 작성해주시고, 예산안 원본도 첨부해주세요.", &format_list(2).set_font_size(12).set_bold().set_border(FormatBorder::Thin).set_border_color(Color::White))?;
 
+    // 수입
     worksheet
         .merge_range(
             4,
@@ -572,6 +597,195 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
             7,
             Formula::new("=B7+E7"),
             &format_list(6)
+            .set_font_size(12)
+            .set_border(FormatBorder::Medium)
+            .set_border_left(FormatBorder::Thin),
+        )?;
+
+    let row = write_business(worksheet, BusinessType::OngoingBusiness, 10, 2)?;
+    let row = write_business(worksheet, BusinessType::GeneralBusiness, row, 2)?;
+    let row = write_business(worksheet, BusinessType::PledgedBusiness, row, 2)?;
+
+    // 지출
+    worksheet
+        .merge_range(
+            8,
+            1,
+            8,
+            7,
+            "지출",
+            &schema_format
+                .clone()
+                .set_bold()
+                .set_border(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            1,
+            "사업구분",
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_left(FormatBorder::Medium)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            2,
+            "사업명",
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            3,
+            "지출 상세",
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            4,
+            format!("{}년도 예산", period[0..4].parse::<u32>()? - 1),
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            5,
+            format!("{}년도 예산", period[0..4].parse::<u32>()?),
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            6,
+            "산출 근거",
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_bottom(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            9,
+            7,
+            "비고",
+            &schema_format
+                .clone()
+                .set_border(FormatBorder::Thin)
+                .set_border_right(FormatBorder::Medium)
+                .set_border_bottom(FormatBorder::Medium),
+        )?;
+
+    worksheet
+        .set_row_height(row, 27)?
+        .merge_range(
+            row,
+            1,
+            row,
+            2,
+            "예비비",
+            &format_list(2)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin)
+                .set_border_left(FormatBorder::Medium),
+        )?
+        .write_with_format(
+            row,
+            3,
+            "잔액",
+            &format_list(2)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin),
+        )?
+        .write_formula_with_format(
+            row,
+            4,
+            Formula::new(format!(
+                "={}-SUM({}:{})",
+                cell_name(6, 6),
+                cell_name(10, 4),
+                cell_name(row - 1, 4)
+            )),
+            &format_list(5)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin),
+        )?
+        .write_formula_with_format(
+            row,
+            5,
+            Formula::new(format!(
+                "={}-SUM({}:{})",
+                cell_name(6, 7),
+                cell_name(10, 5),
+                cell_name(row - 1, 5)
+            )),
+            &format_list(5)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin),
+        )?
+        .write_with_format(
+            row,
+            6,
+            "",
+            &format_list(2)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin),
+        )?
+        .write_with_format(
+            row,
+            7,
+            "",
+            &format_list(2)
+                .set_font_size(12)
+                .set_border(FormatBorder::Thin)
+                .set_border_right(FormatBorder::Medium),
+        )?
+        .set_row_height(row + 1, 22.5)?
+        .merge_range(
+            row + 1,
+            1,
+            row + 1,
+            4,
+            "계",
+            &format_list(3)
+                .set_font_size(12)
+                .set_border(FormatBorder::Medium)
+                .set_border_right(FormatBorder::Thin),
+        )?
+        .write_formula_with_format(
+            row + 1,
+            5,
+            Formula::new(format!("=SUM({}:{})", cell_name(10, 5), cell_name(row, 5))),
+            &format_list(6)
+                .set_font_size(12)
+                .set_border(FormatBorder::Medium)
+                .set_border_left(FormatBorder::Thin)
+                .set_border_right(FormatBorder::Thin),
+        )?
+        .write_with_format(
+            row + 1,
+            6,
+            "",
+            &format_list(3)
+                .set_font_size(12)
+                .set_border(FormatBorder::Medium)
+                .set_border_left(FormatBorder::Thin)
+                .set_border_right(FormatBorder::Thin),
+        )?
+        .write_with_format(
+            row + 1,
+            7,
+            "",
+            &format_list(3)
                 .set_font_size(12)
                 .set_border(FormatBorder::Medium)
                 .set_border_left(FormatBorder::Thin),
