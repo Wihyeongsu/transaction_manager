@@ -7,24 +7,24 @@ pub mod write_budget;
 
 use format::{format_list, DATE_FORMAT_STR, NUM_FORMAT_STR};
 use models::data::{Data, DataBuilder, Date, VariantName};
-use pdf_extract::extract_text;
 use regex::Regex;
 use rust_xlsxwriter::{ExcelDateTime, FormatBorder, Formula, Worksheet};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-pub fn extract_tables_from_pdf(pdf_path: &Path) -> Result<Vec<Data>, Box<dyn Error>> {
-    let text = extract_text(pdf_path)?;
-    let lines: Vec<&str> = text.lines().collect();
-
+pub fn extract_tables(file_path: &Path) -> Result<Vec<Data>, Box<dyn Error>> {
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
     let mut table: Vec<_> = Vec::new();
 
     // "1 yyyy.mm.dd hh:mm:ss name 000,000 000,000 000,000 (name) info info (info)"
-    let pattern = r"^\s*(\d+)\s+(\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2})\s*(.+?)\s+(\d{1,3}(?:,\d{3})*)\s+(\d{1,3}(?:,\d{3})*)\s*(\d{1,3}(?:,\d{3})*)(.*)$";
+    let pattern = r"^(\d+)\|(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})\|([^|]+)\|(\d{1,3}(?:,\d{3})*)\|(\d{1,3}(?:,\d{3})*)\|(\d{1,3}(?:,\d{3})*)\|([^|]*)\|([^|]+)\|([^|]+)\|.*$";
     let regex = Regex::new(&pattern)?;
-    for line in lines {
-        match regex_match(&regex, line) {
+    for line in reader.lines() {
+        match regex_match(&regex, line?.as_str()) {
             Ok(Some(data)) => table.push(data),
             Ok(None) => {}
             Err(e) => return Err(e.into()),
@@ -55,8 +55,17 @@ pub fn regex_match(regex: &Regex, line: &str) -> Result<Option<Data>, Box<dyn Er
 pub fn separate_data(mut table: Vec<Data>) -> Result<Vec<(u8, Vec<Data>)>, Box<dyn Error>> {
     let mut month_data_list: HashMap<u8, Vec<Data>> = HashMap::new();
 
+    let first_month = table.last().expect("first month").date.month;
+    let se: (u8, u8) = if first_month == 1 {
+        (1, 6)
+    } else if first_month == 6 {
+        (6, 12)
+    } else {
+        (0, 0)
+    };
+
     // 데이터가 없는 월 sheet 생성하기 위해
-    for month in table.last().unwrap().date.month..=table.first().unwrap().date.month {
+    for month in se.0..=se.1 {
         month_data_list.insert(month, Vec::new());
     }
 

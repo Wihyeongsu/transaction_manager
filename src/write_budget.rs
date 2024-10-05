@@ -87,7 +87,7 @@ pub fn write_business(
     Ok(row + cnt)
 }
 
-pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn Error>> {
+pub fn budget(worksheet: &mut Worksheet, period: (u16, u8)) -> Result<(), Box<dyn Error>> {
     let schema_format = Format::new()
         .set_align(FormatAlign::Center)
         .set_align(FormatAlign::VerticalCenter)
@@ -144,7 +144,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
                         .set_font_name("새굴림")
                         .set_font_name("Arial")
                         .set_bold(),
-                    format!("{period} 예산안\n").as_str(),
+                    format!("{}년도 제{}회기 예산안\n", period.0, period.1).as_str(),
                 ),
                 (
                     &Format::new()
@@ -175,6 +175,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
     .merge_range(2, 1, 2, 7, "예산안 작성 전, 반드시 가이드라인 및 작성 예시를 참고해주세요. / 색칠된 칸은 입력하지 마세요. / 양식에 맞추어 작성해주시고, 예산안 원본도 첨부해주세요.", &format_list(2).set_font_size(12).set_bold().set_border(FormatBorder::Thin).set_border_color(Color::White))?;
 
     // 수입
+    let sumif = |n: u8| format!("SUMIF('{n}월 정산서'!C:C, \"학생회비 납부\", '{n}월 정산서'!D:D)");
     worksheet
         .merge_range(
             4,
@@ -182,7 +183,8 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
             4,
             7,
             "수입",
-            &schema_format.clone()
+            &schema_format
+                .clone()
                 .set_bold()
                 .set_border(FormatBorder::Medium),
         )?
@@ -203,9 +205,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
             5,
             6,
             "학생회비 납부",
-            &schema_format
-                .clone()
-                .set_border(FormatBorder::Thin),
+            &schema_format.clone().set_border(FormatBorder::Thin),
         )?
         .write_with_format(
             5,
@@ -244,21 +244,44 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
             6,
             4,
             Formula::new(
-                "=SUMIF('1월 정산서'!C:C, \"학생회비 납부\", '1월 정산서'!D:D) + SUMIF('2월 정산서'!C:C, \"학생회비 납부\", '2월 정산서'!D:D) + SUMIF('3월 정산서'!C:C, \"학생회비 납부\", '3월 정산서'!D:D) + SUMIF('4월 정산서'!C:C, \"학생회비 납부\", '4월 정산서'!D:D) + SUMIF('5월 정산서'!C:C, \"학생회비 납부\", '5월 정산서'!D:D) + SUMIF('6월 정산서'!C:C, \"학생회비 납부\", '6월 정산서'!D:D)",
-            ),&format_list(5)
-            .set_font_size(12)
-            .set_border(FormatBorder::Medium)
-            .set_border_left(FormatBorder::Thin)
-            .set_border_right(FormatBorder::Thin)
+                {
+                    let mut formula = "=".to_owned();
+
+                    if period.1 == 1 {
+                        for month in 1..=6 {
+                            formula += sumif(month).as_str();
+                            if month != 6 {
+                                formula += "+";
+                            }
+                        }
+                    } else if period.1 == 2 {
+                        for month in 6..=12 {
+                            formula += sumif(month).as_str();
+                            if month != 12 {
+                                formula += "+";
+                            }
+                        }
+                    } else {
+                        //
+                    }
+                    formula
+                }
+                .as_str(),
+            ),
+            &format_list(5)
+                .set_font_size(12)
+                .set_border(FormatBorder::Medium)
+                .set_border_left(FormatBorder::Thin)
+                .set_border_right(FormatBorder::Thin),
         )?
         .write_formula_with_format(
             6,
             7,
             Formula::new("=B7+E7"),
             &format_list(6)
-            .set_font_size(12)
-            .set_border(FormatBorder::Medium)
-            .set_border_left(FormatBorder::Thin),
+                .set_font_size(12)
+                .set_border(FormatBorder::Medium)
+                .set_border_left(FormatBorder::Thin),
         )?;
 
     let row = write_business(worksheet, BusinessType::OngoingBusiness, 10, 2)?;
@@ -309,7 +332,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
         .write_with_format(
             9,
             4,
-            format!("{}년도 예산", period[0..4].parse::<u32>()? - 1),
+            format!("{}년도 예산", period.0),
             &schema_format
                 .clone()
                 .set_border(FormatBorder::Thin)
@@ -318,7 +341,7 @@ pub fn budget(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn 
         .write_with_format(
             9,
             5,
-            format!("{}년도 예산", period[0..4].parse::<u32>()?),
+            format!("{}년도 예산", period.0),
             &schema_format
                 .clone()
                 .set_border(FormatBorder::Thin)

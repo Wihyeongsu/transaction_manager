@@ -4,7 +4,7 @@ use rust_xlsxwriter::{Color, Format, FormatAlign, FormatBorder, Formula, Workshe
 
 use crate::{cell_name, format::format_list};
 
-pub fn account(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn Error>> {
+pub fn account(worksheet: &mut Worksheet, period: (u16, u8)) -> Result<(), Box<dyn Error>> {
     let schema_format = Format::new()
         .set_align(FormatAlign::Center)
         .set_align(FormatAlign::VerticalCenter)
@@ -49,7 +49,7 @@ pub fn account(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn
                         .set_font_name("새굴림")
                         .set_font_name("Arial")
                         .set_bold(),
-                    format!("{period} 재정감사 정산서\n").as_str(),
+                    format!("{}년도 제{}회기 재정감사 정산서\n", period.0, period.1).as_str(),
                 ),
                 (
                     &Format::new()
@@ -155,7 +155,7 @@ pub fn account(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn
         .write_formula_with_format(
             3,
             4,
-            Formula::new(format!("='{} 예산안'!B7", period)),
+            Formula::new(format!("='{}년도 제{}회기 예산안'!B7", period.0, period.1)),
             &format_list(6)
                 .set_font_size(12)
                 .set_border(FormatBorder::Thin)
@@ -191,7 +191,7 @@ pub fn account(worksheet: &mut Worksheet, period: &String) -> Result<(), Box<dyn
         )?;
     let mut row = 4;
 
-    let (s, e) = match period.chars().nth(8).unwrap().to_string().parse::<u32>()? {
+    let (s, e) = match period.1 {
         1 => (1, 6),
         2 => (6, 12),
         _ => (0, 0),

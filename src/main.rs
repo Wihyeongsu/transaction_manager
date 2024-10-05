@@ -1,12 +1,11 @@
 use rust_xlsxwriter::*;
 use std::error::Error;
 use std::path::Path;
-use transaction_manager::discord_message::send_discord_xlsx;
 use transaction_manager::format::format_list;
 use transaction_manager::write_account::account;
 use transaction_manager::write_budget::budget;
 use transaction_manager::{
-    cell_name, extract_tables_from_pdf, separate_data, sheet_template, write_data_in_sheet,
+    cell_name, extract_tables, separate_data, sheet_template, write_data_in_sheet,
 };
 
 // 월별 transaction 분류
@@ -15,8 +14,8 @@ use transaction_manager::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let pdf_path = Path::new("account.pdf");
-    let mut table = extract_tables_from_pdf(pdf_path)?;
+    let file_path = Path::new("account.txt");
+    let table = extract_tables(file_path)?;
 
     // Create a new Excel file object.
     let mut workbook = Workbook::new();
@@ -26,16 +25,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut data_size = Vec::with_capacity(month_data_list.len()); // 작월 이월금을 가져오기 위해 사용
 
     //
-    let period = format!(
-        "{}년도 제{}회기",
-        month_data_list[0].1[0].date.year,
-        match month_data_list[0].0 {
-            // 이 부분은 개선의 필요가 있을 듯
-            6 => 2,
-            1 => 1,
-            _ => 0,
-        }
-    );
+    let period: (u16, u8) = {
+        (
+            month_data_list[0].1[0].date.year,
+            match month_data_list[0].0 {
+                // 이 부분은 개선의 필요가 있을 듯
+                6 => 2,
+                1 => 1,
+                _ => 0,
+            },
+        )
+    };
 
     for (month, data_list) in month_data_list.iter() {
         let sheet_name = month.to_string() + "월 정산서";
@@ -68,7 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .write_formula_with_format(
                     3,
                     3,
-                    Formula::new(format!("='{} 예산안'!B7", period)),
+                    Formula::new(format!("='{}년도 제{}회기 예산안'!B7", period.0, period.1)),
                     &format_list(6),
                 )?
                 .write_with_format(3, 6, "전단위 인수인계 금액", &format_list(3))?;
@@ -94,24 +94,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // {}년도 제{}회기 예산안
     let worksheet1 = workbook
         .add_worksheet()
-        .set_name(format!("{} 예산안", period))?;
+        .set_name(format!("{}년도 제{}회기 예산안", period.0, period.1))?;
 
     // budget
-    budget(worksheet1, &period)?;
+    budget(worksheet1, period)?;
 
     // {}년도 제{}회기 정산서
     let worksheet2 = workbook
         .add_worksheet()
-        .set_name(format!("{} 정산서", period))?;
+        .set_name(format!("{}년도 제{}회기 정산서", period.0, period.1))?;
 
     // account
-    account(worksheet2, &period)?;
+    account(worksheet2, period)?;
 
     for worksheet in worksheets.into_iter() {
         workbook.push_worksheet(worksheet);
     }
 
-    let title = format!("{} 중앙감사위원회_재정감사", period[0..4].to_string());
+    let title = format!("{} 중앙감사위원회_재정감사", period.0);
     workbook.set_properties(
         &DocProperties::new()
             .set_author("위형수")
@@ -128,6 +128,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // send xlsx file to discord server
     // send_discord_xlsx(&location).await?;
+
+    println!("Completely generated {title}.xlsx");
 
     Ok(())
 }
